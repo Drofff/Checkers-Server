@@ -28,4 +28,9 @@ public class PieceController {
         return pieceService.doStep(step);
     }
 
+    @MessageMapping("isTurn")
+    public Mono<Boolean> isTurnOfCurrentUser() {
+        return pieceService.isTurnOfCurrentUser();
+    }
+
 }

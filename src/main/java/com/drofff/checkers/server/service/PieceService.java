@@ -11,4 +11,6 @@ public interface PieceService {
 
     Mono<Void> doStep(Step step);
 
+    Mono<Boolean> isTurnOfCurrentUser();
+
 }

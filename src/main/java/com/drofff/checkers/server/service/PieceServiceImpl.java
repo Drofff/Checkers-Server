@@ -1,8 +1,6 @@
 package com.drofff.checkers.server.service;
 
-import com.drofff.checkers.server.document.Piece;
-import com.drofff.checkers.server.document.Step;
-import com.drofff.checkers.server.document.User;
+import com.drofff.checkers.server.document.*;
 import com.drofff.checkers.server.enums.BoardSide;
 import com.drofff.checkers.server.exception.ValidationException;
 import com.drofff.checkers.server.type.EmptyPiece;
@@ -34,36 +32,35 @@ public class PieceServiceImpl implements PieceService {
     }
 
     private Mono<BoardSide> getBoardSideOfPiece(Piece piece) {
-        Mono<User> currentUser = getCurrentUser();
+        Mono<User> currentUserMono = getCurrentUser();
         return getCurrentUser().filter(user -> isOwnerOfPiece(user, piece))
-                .flatMap(user -> getBoardSideOfUser(currentUser))
-                .switchIfEmpty(getBoardSideOfOpponentOfUser(currentUser));
+                .flatMap(user -> getBoardSideOfUser(currentUserMono))
+                .switchIfEmpty(getBoardSideOfOpponentOfUser(currentUserMono));
     }
 
     private boolean isOwnerOfPiece(User user, Piece piece) {
         return user.getId().equals(piece.getOwnerId());
     }
 
-    private Mono<BoardSide> getBoardSideOfOpponentOfUser(Mono<User> userMono) {
-        return getBoardSideOfUser(userMono).map(BoardSide::oppositeSide);
-    }
-
-    private Mono<BoardSide> getBoardSideOfUser(Mono<User> userMono) {
-        return userMono.flatMap(user -> sessionService.getSessionOfUser(user).map(session ->
-                session.isOwnedBy(user) ? BoardSide.RED : BoardSide.BLACK));
-    }
-
     @Override
     public Mono<Void> doStep(Step step) {
         LOG.info("Piece step from [{}] to [{}]", step.getFromPosition(), step.getToPosition());
-        Mono<Piece> voidMono = validateSquareAtPositionIsEmpty(step.getToPosition());
+        Mono<Piece> pieceMono = validateStep(step);
         Piece.Position fromPosition = step.getFromPosition();
-        return voidMono.flatMap(piece -> getPieceAtPosition(fromPosition))
+        return pieceMono.flatMap(piece -> getPieceAtPosition(fromPosition))
                 .switchIfEmpty(error(new ValidationException("Missing piece at position " + fromPosition.toString())))
-                .flatMap(piece -> {
-                    piece.setPosition(step.getToPosition());
-                    return updatePiece(piece);
-                });
+                .flatMap(piece -> applyStepToPiece(step, piece));
+    }
+
+    private Mono<Piece> validateStep(Step step) {
+        return validateIsTurnOfCurrentUser()
+                .flatMap(piece -> validateSquareAtPositionIsEmpty(step.getToPosition()));
+    }
+
+    private Mono<Piece> validateIsTurnOfCurrentUser() {
+        return isTurnOfCurrentUser()
+                .flatMap(isTurn -> isTurn ? Mono.just(new EmptyPiece()) :
+                        error(new ValidationException("Wait for the opponent to make a step")));
     }
 
     private Mono<Piece> validateSquareAtPositionIsEmpty(Piece.Position position) {
@@ -87,13 +84,49 @@ public class PieceServiceImpl implements PieceService {
         return piece instanceof EmptyPiece;
     }
 
-    private Mono<Void> updatePiece(Piece piece) {
-        return sessionService.getCurrentSession().flatMap(session -> {
-                    List<Piece> pieces = session.getGameBoard().getPieces();
-                    pieces.remove(piece);
-                    pieces.add(piece);
-                    return sessionService.updateSession(session);
+    private Mono<Void> applyStepToPiece(Step step, Piece piece) {
+        piece.setPosition(step.getToPosition());
+        return sessionService.getCurrentSession()
+                .map(session -> updateSessionPiece(session, piece))
+                .flatMap(this::switchTurnAtSessionToOpponent)
+                .flatMap(sessionService::updateSession);
+    }
+
+    private Session updateSessionPiece(Session session, Piece piece) {
+        Board gameBoard = session.getGameBoard();
+        List<Piece> pieces = gameBoard.getPieces();
+        pieces.remove(piece);
+        pieces.add(piece);
+        return session;
+    }
+
+    private Mono<Session> switchTurnAtSessionToOpponent(Session session) {
+        return getBoardSideOfOpponentOfUser(getCurrentUser())
+                .map(opponentSide -> {
+                    Board gameBoard = session.getGameBoard();
+                    gameBoard.setTurnSide(opponentSide);
+                    return session;
                 });
+    }
+
+    private Mono<BoardSide> getBoardSideOfOpponentOfUser(Mono<User> userMono) {
+        return getBoardSideOfUser(userMono).map(BoardSide::oppositeSide);
+    }
+
+    @Override
+    public Mono<Boolean> isTurnOfCurrentUser() {
+        Mono<User> currentUserMono = getCurrentUser();
+        return getBoardSideOfUser(currentUserMono)
+                .flatMap(userSide -> sessionService.getCurrentSession()
+                        .map(session -> {
+                            BoardSide turnSide = session.getGameBoard().getTurnSide();
+                            return turnSide == userSide;
+                        }));
+    }
+
+    private Mono<BoardSide> getBoardSideOfUser(Mono<User> userMono) {
+        return userMono.flatMap(user -> sessionService.getSessionOfUser(user).map(session ->
+                session.isOwnedBy(user) ? BoardSide.RED : BoardSide.BLACK));
     }
 
 }
