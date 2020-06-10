@@ -3,7 +3,7 @@ package com.drofff.checkers.server.message;
 import com.drofff.checkers.server.document.Board;
 import com.drofff.checkers.server.document.Session;
 import com.drofff.checkers.server.enums.BoardSide;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.drofff.checkers.server.utils.JsonUtils;
 import reactor.core.publisher.Mono;
 
 import static com.drofff.checkers.server.enums.BoardSide.BLACK;
@@ -35,15 +35,10 @@ public class SessionMessage extends AbstractInitialMessage {
 
     @Override
     public Object getPayload() {
-        String boardJson = getBoardAsJson();
+        String boardJson = JsonUtils.serializeIntoJson(board);
         return strMapOf("board", boardJson,
                 "userSide", userSide.name(),
                 "userId", userId);
-    }
-
-    private String getBoardAsJson() {
-        ObjectMapper objectMapper = new ObjectMapper();
-        return objectMapper.valueToTree(board).toString();
     }
 
 }

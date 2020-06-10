@@ -34,7 +34,7 @@ public class PieceServiceImpl implements PieceService {
     private Mono<BoardSide> getBoardSideOfPiece(Piece piece) {
         Mono<User> currentUserMono = getCurrentUser();
         return getCurrentUser().filter(user -> isOwnerOfPiece(user, piece))
-                .flatMap(user -> getBoardSideOfUser(currentUserMono))
+                .flatMap(user -> sessionService.getBoardSideOfUser(currentUserMono))
                 .switchIfEmpty(getBoardSideOfOpponentOfUser(currentUserMono));
     }
 
@@ -89,6 +89,7 @@ public class PieceServiceImpl implements PieceService {
         return sessionService.getCurrentSession()
                 .map(session -> updateSessionPiece(session, piece))
                 .flatMap(this::switchTurnAtSessionToOpponent)
+                .flatMap(session -> sessionService.sendStepToOpponent(step).thenReturn(session))
                 .flatMap(sessionService::updateSession);
     }
 
@@ -110,23 +111,18 @@ public class PieceServiceImpl implements PieceService {
     }
 
     private Mono<BoardSide> getBoardSideOfOpponentOfUser(Mono<User> userMono) {
-        return getBoardSideOfUser(userMono).map(BoardSide::oppositeSide);
+        return sessionService.getBoardSideOfUser(userMono).map(BoardSide::oppositeSide);
     }
 
     @Override
     public Mono<Boolean> isTurnOfCurrentUser() {
         Mono<User> currentUserMono = getCurrentUser();
-        return getBoardSideOfUser(currentUserMono)
+        return sessionService.getBoardSideOfUser(currentUserMono)
                 .flatMap(userSide -> sessionService.getCurrentSession()
                         .map(session -> {
                             BoardSide turnSide = session.getGameBoard().getTurnSide();
                             return turnSide == userSide;
                         }));
-    }
-
-    private Mono<BoardSide> getBoardSideOfUser(Mono<User> userMono) {
-        return userMono.flatMap(user -> sessionService.getSessionOfUser(user).map(session ->
-                session.isOwnedBy(user) ? BoardSide.RED : BoardSide.BLACK));
     }
 
 }

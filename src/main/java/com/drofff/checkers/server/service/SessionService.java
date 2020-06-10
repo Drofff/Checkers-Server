@@ -1,7 +1,9 @@
 package com.drofff.checkers.server.service;
 
 import com.drofff.checkers.server.document.Session;
+import com.drofff.checkers.server.document.Step;
 import com.drofff.checkers.server.document.User;
+import com.drofff.checkers.server.enums.BoardSide;
 import com.drofff.checkers.server.message.Message;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -14,7 +16,11 @@ public interface SessionService {
 
     Mono<Void> updateSession(Session session);
 
+    Mono<Void> sendStepToOpponent(Step step);
+
     Mono<Session> getCurrentSession();
+
+    Mono<BoardSide> getBoardSideOfUser(Mono<User> userMono);
 
     Mono<Session> getSessionOfUser(User user);
 

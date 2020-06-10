@@ -4,6 +4,7 @@ import com.drofff.checkers.server.document.Session;
 import com.drofff.checkers.server.dto.SessionDto;
 import com.drofff.checkers.server.message.Message;
 import com.drofff.checkers.server.service.SessionService;
+import com.drofff.checkers.server.service.UserService;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
@@ -19,15 +20,24 @@ import static com.drofff.checkers.server.utils.MessageUtils.toSessionIdMessage;
 public class SessionController {
 
     private final SessionService sessionService;
+    private final UserService userService;
 
-    public SessionController(SessionService sessionService) {
+    public SessionController(SessionService sessionService, UserService userService) {
         this.sessionService = sessionService;
+        this.userService = userService;
     }
 
     @MessageMapping(".init")
     public Mono<Message> initSession(@Payload Mono<SessionDto> sessionDtoMono) {
         Mono<Session> sessionMono = sessionDtoMono.map(SessionDto::getNickname)
                 .flatMap(sessionService::initSessionWithUserHavingNickname);
+        return toSessionIdMessage(sessionMono);
+    }
+
+    @MessageMapping(".with.{nickname}")
+    public Mono<Message> getSessionWithOpponentHavingNickname(@DestinationVariable String nickname) {
+        Mono<Session> sessionMono = userService.getUserByNickname(nickname)
+                .flatMap(sessionService::getSessionOfUser);
         return toSessionIdMessage(sessionMono);
     }
 

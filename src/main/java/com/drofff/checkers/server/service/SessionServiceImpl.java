@@ -1,12 +1,11 @@
 package com.drofff.checkers.server.service;
 
-import com.drofff.checkers.server.document.Board;
-import com.drofff.checkers.server.document.Piece;
-import com.drofff.checkers.server.document.Session;
-import com.drofff.checkers.server.document.User;
+import com.drofff.checkers.server.document.*;
+import com.drofff.checkers.server.enums.BoardSide;
 import com.drofff.checkers.server.exception.ValidationException;
 import com.drofff.checkers.server.message.Message;
 import com.drofff.checkers.server.message.SessionMessage;
+import com.drofff.checkers.server.message.StepMessage;
 import com.drofff.checkers.server.repository.SessionRepository;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
@@ -172,8 +171,29 @@ public class SessionServiceImpl implements SessionService {
     }
 
     @Override
+    public Mono<Void> sendStepToOpponent(Step step) {
+        return getOpponentId().map(fluxSinksOfUsers::get)
+                .flatMap(opponentFluxSink -> getBoardSideOfUser(getCurrentUser()).doOnNext(userSide -> {
+                    StepMessage stepMessage = new StepMessage(userSide, step);
+                    opponentFluxSink.next(stepMessage);
+                })).then();
+    }
+
+    private Mono<String> getOpponentId() {
+        return getCurrentSession().flatMap(session -> getCurrentUser().map(currentUser ->
+                session.isOwnedBy(currentUser) ? session.getSessionMemberId() : session.getSessionOwnerId())
+        );
+    }
+
+    @Override
     public Mono<Session> getCurrentSession() {
         return getCurrentUser().flatMap(this::getSessionOfUser);
+    }
+
+    @Override
+    public Mono<BoardSide> getBoardSideOfUser(Mono<User> userMono) {
+        return userMono.flatMap(user -> getSessionOfUser(user).map(session ->
+                session.isOwnedBy(user) ? BoardSide.RED : BoardSide.BLACK));
     }
 
     @Override
