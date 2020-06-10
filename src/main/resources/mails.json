@@ -1,0 +1,6 @@
+{
+  "account-activation" : {
+    "title" : "Checkers account activation",
+    "text" : "<b>Dear, ${nickname}! Welcome to the Checkers!</b><br/> Use the token below to activate your account. Thank you!<br/><br/><input readonly value='${token}' style='margin-left: 5%;'>"
+  }
+}
