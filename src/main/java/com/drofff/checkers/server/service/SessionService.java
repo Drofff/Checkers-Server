@@ -18,6 +18,8 @@ public interface SessionService {
 
     Mono<Void> sendStepToOpponent(Step step);
 
+    Mono<Void> sendStepToSessionMembers(Step step);
+
     Mono<Session> getCurrentSession();
 
     Mono<BoardSide> getBoardSideOfUser(Mono<User> userMono);

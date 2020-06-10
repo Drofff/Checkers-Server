@@ -14,6 +14,7 @@ import reactor.core.publisher.Mono;
 
 import static com.drofff.checkers.server.utils.MessageUtils.resumeWithErrorMessage;
 import static com.drofff.checkers.server.utils.MessageUtils.toSessionIdMessage;
+import static com.drofff.checkers.server.utils.SecurityUtils.getCurrentUser;
 
 @RestController
 @MessageMapping("session")
@@ -37,7 +38,10 @@ public class SessionController {
     @MessageMapping(".with.{nickname}")
     public Mono<Message> getSessionWithOpponentHavingNickname(@DestinationVariable String nickname) {
         Mono<Session> sessionMono = userService.getUserByNickname(nickname)
-                .flatMap(sessionService::getSessionOfUser);
+                .flatMap(sessionService::getSessionOfUser)
+                .flatMap(session -> getCurrentUser()
+                        .flatMap(user -> session.hasUser(user) ? Mono.just(session) : Mono.empty())
+                );
         return toSessionIdMessage(sessionMono);
     }
 

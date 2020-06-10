@@ -186,6 +186,26 @@ public class SessionServiceImpl implements SessionService {
     }
 
     @Override
+    public Mono<Void> sendStepToSessionMembers(Step step) {
+        return getCurrentSession().doOnNext(session -> {
+            sendStepToSessionOwner(step, session);
+            sendStepToSessionMember(step, session);
+        }).then();
+    }
+
+    private void sendStepToSessionOwner(Step step, Session session) {
+        String ownerId = session.getSessionOwnerId();
+        StepMessage stepMessage = new StepMessage(BoardSide.RED, step);
+        fluxSinksOfUsers.get(ownerId).next(stepMessage);
+    }
+
+    private void sendStepToSessionMember(Step step, Session session) {
+        String memberId = session.getSessionMemberId();
+        StepMessage stepMessage = new StepMessage(BoardSide.BLACK, step);
+        fluxSinksOfUsers.get(memberId).next(stepMessage);
+    }
+
+    @Override
     public Mono<Session> getCurrentSession() {
         return getCurrentUser().flatMap(this::getSessionOfUser);
     }

@@ -7,12 +7,14 @@ import com.drofff.checkers.server.type.EmptyPiece;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.util.List;
 import java.util.Optional;
 
 import static com.drofff.checkers.server.utils.SecurityUtils.getCurrentUser;
+import static java.util.stream.Collectors.toList;
 import static reactor.core.publisher.Mono.error;
 
 @Service
@@ -85,20 +87,33 @@ public class PieceServiceImpl implements PieceService {
     }
 
     private Mono<Void> applyStepToPiece(Step step, Piece piece) {
-        piece.setPosition(step.getToPosition());
         return sessionService.getCurrentSession()
-                .map(session -> updateSessionPiece(session, piece))
+                .flatMap(session -> updatePieceByStepInSession(piece, step, session))
+                .flatMap(session -> removePiecesCapturedByStepFromSession(step, session))
                 .flatMap(this::switchTurnAtSessionToOpponent)
-                .flatMap(session -> sessionService.sendStepToOpponent(step).thenReturn(session))
                 .flatMap(sessionService::updateSession);
     }
 
-    private Session updateSessionPiece(Session session, Piece piece) {
-        Board gameBoard = session.getGameBoard();
-        List<Piece> pieces = gameBoard.getPieces();
+    private Mono<Session> updatePieceByStepInSession(Piece piece, Step step, Session session) {
+        piece.setPosition(step.getToPosition());
+        List<Piece> pieces = session.getGameBoard().getPieces();
         pieces.remove(piece);
         pieces.add(piece);
-        return session;
+        return sessionService.sendStepToOpponent(step).thenReturn(session);
+    }
+
+    private Mono<Session> removePiecesCapturedByStepFromSession(Step step, Session session) {
+        List<Piece> pieces = session.getGameBoard().getPieces();
+        List<Piece> capturedPieces = pieces.stream().filter(step::captures).collect(toList());
+        capturedPieces.forEach(pieces::remove);
+        return notifyRemovedCapturedPieces(capturedPieces).then(Mono.just(session));
+    }
+
+    private Flux<Void> notifyRemovedCapturedPieces(List<Piece> pieces) {
+        return Flux.fromStream(pieces.stream())
+                .map(Piece::getPosition)
+                .map(Step::removeFromPosition)
+                .flatMap(sessionService::sendStepToSessionMembers);
     }
 
     private Mono<Session> switchTurnAtSessionToOpponent(Session session) {
