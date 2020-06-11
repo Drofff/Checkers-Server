@@ -3,6 +3,7 @@ package com.drofff.checkers.server.service;
 import com.drofff.checkers.server.document.*;
 import com.drofff.checkers.server.enums.BoardSide;
 import com.drofff.checkers.server.exception.ValidationException;
+import com.drofff.checkers.server.message.FinishMessage;
 import com.drofff.checkers.server.type.EmptyPiece;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -12,6 +13,7 @@ import reactor.core.publisher.Mono;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Consumer;
 
 import static com.drofff.checkers.server.utils.SecurityUtils.getCurrentUser;
 import static java.util.stream.Collectors.toList;
@@ -23,9 +25,11 @@ public class PieceServiceImpl implements PieceService {
     private static final Logger LOG = LoggerFactory.getLogger(PieceServiceImpl.class);
 
     private final SessionService sessionService;
+    private final UserService userService;
 
-    public PieceServiceImpl(SessionService sessionService) {
+    public PieceServiceImpl(SessionService sessionService, UserService userService) {
         this.sessionService = sessionService;
+        this.userService = userService;
     }
 
     @Override
@@ -51,7 +55,8 @@ public class PieceServiceImpl implements PieceService {
         Piece.Position fromPosition = step.getFromPosition();
         return pieceMono.flatMap(piece -> getPieceAtPosition(fromPosition))
                 .switchIfEmpty(error(new ValidationException("Missing piece at position " + fromPosition.toString())))
-                .flatMap(piece -> applyStepToPiece(step, piece));
+                .flatMap(piece -> applyStepToPiece(step, piece))
+                .flatMap(s -> finishSessionIfGameOver());
     }
 
     private Mono<Piece> validateStep(Step step) {
@@ -86,12 +91,13 @@ public class PieceServiceImpl implements PieceService {
         return piece instanceof EmptyPiece;
     }
 
-    private Mono<Void> applyStepToPiece(Step step, Piece piece) {
+    private Mono<Step> applyStepToPiece(Step step, Piece piece) {
         return sessionService.getCurrentSession()
                 .flatMap(session -> updatePieceByStepInSession(piece, step, session))
                 .flatMap(session -> removePiecesCapturedByStepFromSession(step, session))
                 .flatMap(this::switchTurnAtSessionToOpponent)
-                .flatMap(sessionService::updateSession);
+                .flatMap(sessionService::updateSession)
+                .thenReturn(step);
     }
 
     private Mono<Session> updatePieceByStepInSession(Piece piece, Step step, Session session) {
@@ -127,6 +133,75 @@ public class PieceServiceImpl implements PieceService {
 
     private Mono<BoardSide> getBoardSideOfOpponentOfUser(Mono<User> userMono) {
         return sessionService.getBoardSideOfUser(userMono).map(BoardSide::oppositeSide);
+    }
+
+    private Mono<Void> finishSessionIfGameOver() {
+        return isGameOver().filter(gameOver -> gameOver)
+                .flatMap(go -> finishSession()).then();
+    }
+
+    private Mono<Boolean> isGameOver() {
+        return sessionService.getCurrentSession().map(session -> {
+            List<Piece> pieces = session.getGameBoard().getPieces();
+            return allPiecesShareOwner(pieces);
+        });
+    }
+
+    private boolean allPiecesShareOwner(List<Piece> pieces) {
+        long distinctOwnersCount = pieces.stream()
+                .map(Piece::getOwnerId)
+                .distinct().count();
+        return distinctOwnersCount == 1;
+    }
+
+    private Mono<Void> finishSession() {
+        return sessionService.getCurrentSession()
+                .flatMap(this::saveSessionResultForMembers)
+                .flatMap(sessionService::removeSession);
+    }
+
+    private Mono<Session> saveSessionResultForMembers(Session session) {
+        List<Piece> pieces = session.getGameBoard().getPieces();
+        String winnerId = pieces.get(0).getOwnerId();
+        String loserId = getOpponentOfUserWithIdInSession(winnerId, session);
+        return saveWinForUserWithId(winnerId).thenReturn(loserId)
+                .flatMap(id -> saveLoseForUserWithIdAgainstUser(id, winnerId))
+                .thenReturn(session);
+    }
+
+    private String getOpponentOfUserWithIdInSession(String id, Session session) {
+        String ownerId = session.getSessionOwnerId();
+        return ownerId.equals(id) ? session.getSessionMemberId() : ownerId;
+    }
+
+    private Mono<Void> saveWinForUserWithId(String id) {
+        return updateUserWithIdUsingConsumer(id, user -> {
+            int winsCount = user.getWinsCount();
+            user.setWinsCount(++winsCount);
+            sessionService.sendMessageToUserWithId(FinishMessage.win(), user.getId());
+        });
+    }
+
+    private Mono<Void> saveLoseForUserWithIdAgainstUser(String id, String winnerId) {
+        return userService.getUserById(winnerId).flatMap(winner -> {
+           String winnerNickname = winner.getNickname();
+           return saveLoseForUserWithIdAgainstUserWithNickname(id, winnerNickname);
+        });
+    }
+
+    private Mono<Void> saveLoseForUserWithIdAgainstUserWithNickname(String id, String winnerNickname) {
+        return updateUserWithIdUsingConsumer(id, user -> {
+            int losesCount = user.getLosesCount();
+            user.setLosesCount(++losesCount);
+            FinishMessage loseMessage = FinishMessage.loseTo(winnerNickname);
+            sessionService.sendMessageToUserWithId(loseMessage, user.getId());
+        });
+    }
+
+    private Mono<Void> updateUserWithIdUsingConsumer(String userId, Consumer<User> userUpdater) {
+        return userService.getUserById(userId)
+                .doOnNext(userUpdater)
+                .flatMap(userService::updateUser);
     }
 
     @Override

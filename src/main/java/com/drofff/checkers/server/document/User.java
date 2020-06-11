@@ -33,7 +33,7 @@ public class User implements UserDetails {
 
     private int winsCount;
 
-    private int lossesCount;
+    private int losesCount;
 
     private boolean active;
 
@@ -75,12 +75,12 @@ public class User implements UserDetails {
         this.winsCount = winsCount;
     }
 
-    public int getLossesCount() {
-        return lossesCount;
+    public int getLosesCount() {
+        return losesCount;
     }
 
-    public void setLossesCount(int lossesCount) {
-        this.lossesCount = lossesCount;
+    public void setLosesCount(int losesCount) {
+        this.losesCount = losesCount;
     }
 
     public boolean isActive() {

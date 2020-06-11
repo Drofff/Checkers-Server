@@ -11,7 +11,7 @@ import static com.drofff.checkers.server.enums.BoardSide.RED;
 import static com.drofff.checkers.server.utils.MapUtils.strMapOf;
 import static com.drofff.checkers.server.utils.SecurityUtils.getCurrentUser;
 
-public class SessionMessage extends AbstractInitialMessage {
+public class SessionMessage extends InitialMessage {
 
     private final Board board;
 

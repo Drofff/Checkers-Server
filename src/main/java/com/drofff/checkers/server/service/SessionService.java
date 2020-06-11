@@ -20,10 +20,14 @@ public interface SessionService {
 
     Mono<Void> sendStepToSessionMembers(Step step);
 
+    void sendMessageToUserWithId(Message message, String userId);
+
     Mono<Session> getCurrentSession();
 
     Mono<BoardSide> getBoardSideOfUser(Mono<User> userMono);
 
     Mono<Session> getSessionOfUser(User user);
+
+    Mono<Void> removeSession(Session session);
 
 }

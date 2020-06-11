@@ -172,11 +172,10 @@ public class SessionServiceImpl implements SessionService {
 
     @Override
     public Mono<Void> sendStepToOpponent(Step step) {
-        return getOpponentId().map(fluxSinksOfUsers::get)
-                .flatMap(opponentFluxSink -> getBoardSideOfUser(getCurrentUser()).doOnNext(userSide -> {
-                    StepMessage stepMessage = new StepMessage(userSide, step);
-                    opponentFluxSink.next(stepMessage);
-                })).then();
+        return getOpponentId().flatMap(opponentId -> getBoardSideOfUser(getCurrentUser()).doOnNext(userSide -> {
+            StepMessage stepMessage = new StepMessage(userSide, step);
+            sendMessageToUserWithId(stepMessage, opponentId);
+        })).then();
     }
 
     private Mono<String> getOpponentId() {
@@ -196,13 +195,18 @@ public class SessionServiceImpl implements SessionService {
     private void sendStepToSessionOwner(Step step, Session session) {
         String ownerId = session.getSessionOwnerId();
         StepMessage stepMessage = new StepMessage(BoardSide.RED, step);
-        fluxSinksOfUsers.get(ownerId).next(stepMessage);
+        sendMessageToUserWithId(stepMessage, ownerId);
     }
 
     private void sendStepToSessionMember(Step step, Session session) {
         String memberId = session.getSessionMemberId();
         StepMessage stepMessage = new StepMessage(BoardSide.BLACK, step);
-        fluxSinksOfUsers.get(memberId).next(stepMessage);
+        sendMessageToUserWithId(stepMessage, memberId);
+    }
+
+    @Override
+    public void sendMessageToUserWithId(Message message, String userId) {
+        fluxSinksOfUsers.get(userId).next(message);
     }
 
     @Override
@@ -224,6 +228,11 @@ public class SessionServiceImpl implements SessionService {
     @Override
     public Mono<Void> updateSession(Session session) {
         return sessionRepository.save(session).then();
+    }
+
+    @Override
+    public Mono<Void> removeSession(Session session) {
+        return sessionRepository.delete(session);
     }
 
 }
