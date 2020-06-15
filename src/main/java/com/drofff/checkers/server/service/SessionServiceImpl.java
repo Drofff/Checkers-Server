@@ -171,9 +171,19 @@ public class SessionServiceImpl implements SessionService {
     }
 
     @Override
-    public Mono<Void> sendStepToOpponent(Step step) {
+    public Mono<Void> sendStepOfKingToOpponent(Step step) {
+        return sendStepToOpponent(step, true);
+    }
+
+    @Override
+    public Mono<Void> sendStepOfManToOpponent(Step step) {
+        return sendStepToOpponent(step, false);
+    }
+
+    private Mono<Void> sendStepToOpponent(Step step, boolean isKing) {
         return getOpponentId().flatMap(opponentId -> getBoardSideOfUser(getCurrentUser()).doOnNext(userSide -> {
             StepMessage stepMessage = new StepMessage(userSide, step);
+            stepMessage.setKing(isKing);
             sendMessageToUserWithId(stepMessage, opponentId);
         })).then();
     }
@@ -207,6 +217,17 @@ public class SessionServiceImpl implements SessionService {
     @Override
     public void sendMessageToUserWithId(Message message, String userId) {
         fluxSinksOfUsers.get(userId).next(message);
+    }
+
+    @Override
+    public Mono<Boolean> isTurnOfCurrentUser() {
+        Mono<User> currentUserMono = getCurrentUser();
+        return getBoardSideOfUser(currentUserMono).flatMap(userSide ->
+                getCurrentSession().map(session -> {
+                    BoardSide turnSide = session.getGameBoard().getTurnSide();
+                    return turnSide == userSide;
+                })
+        );
     }
 
     @Override

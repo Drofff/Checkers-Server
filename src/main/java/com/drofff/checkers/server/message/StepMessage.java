@@ -13,6 +13,8 @@ public class StepMessage extends UpdateMessage {
     private final BoardSide userSide;
     private final Step step;
 
+    private Boolean isKing;
+
     public StepMessage(BoardSide userSide, Step step) {
         this.userSide = userSide;
         this.step = step;
@@ -22,7 +24,11 @@ public class StepMessage extends UpdateMessage {
     public Map<String, String> getPayload() {
         String stepJson = JsonUtils.serializeIntoJson(step);
         return strMapOf("userSide", userSide.name(),
-                "step", stepJson);
+                "step", stepJson, "isKing", isKing + "");
+    }
+
+    public void setKing(Boolean king) {
+        isKing = king;
     }
 
 }

@@ -51,4 +51,9 @@ public class SessionController {
                 .onErrorResume(resumeWithErrorMessage());
     }
 
+    @MessageMapping("isTurn")
+    public Mono<Boolean> isTurnOfCurrentUser() {
+        return sessionService.isTurnOfCurrentUser();
+    }
+
 }

@@ -1,9 +1,7 @@
 package com.drofff.checkers.server.document;
 
 import com.drofff.checkers.server.type.Removed;
-
-import static java.lang.Math.max;
-import static java.lang.Math.min;
+import com.drofff.checkers.server.utils.PositionUtils;
 
 public class Step {
 
@@ -35,27 +33,8 @@ public class Step {
     }
 
     public boolean captures(Piece piece) {
-        return capturesPieceByColumn(piece) && capturesPieceByRow(piece);
-    }
-
-    private boolean capturesPieceByColumn(Piece piece) {
-        int fromColumn = fromPosition.getColumn();
-        int toColumn = toPosition.getColumn();
-        int pieceColumn = piece.getPosition().getColumn();
-        return isBetween(pieceColumn, fromColumn, toColumn);
-    }
-
-    private boolean capturesPieceByRow(Piece piece) {
-        int fromRow = fromPosition.getRow();
-        int toRow = toPosition.getRow();
-        int pieceRow = piece.getPosition().getRow();
-        return isBetween(pieceRow, fromRow, toRow);
-    }
-
-    private boolean isBetween(int num, int leftBound, int rightBound) {
-        int maxValue = max(leftBound, rightBound);
-        int minValue = min(leftBound, rightBound);
-        return num < maxValue && num > minValue;
+        Piece.Position piecePosition = piece.getPosition();
+        return PositionUtils.isPositionInBounds(piecePosition, fromPosition, toPosition);
     }
 
 }

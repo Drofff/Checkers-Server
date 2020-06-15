@@ -11,6 +11,8 @@ public interface PieceService {
 
     Mono<Void> doStep(Step step);
 
-    Mono<Boolean> isTurnOfCurrentUser();
+    Mono<Integer> countOpponentPiecesBetweenPositions(Piece.Position fromPosition, Piece.Position toPosition);
+
+    Mono<Boolean> isPieceAtPositionKing(Piece.Position piecePosition);
 
 }

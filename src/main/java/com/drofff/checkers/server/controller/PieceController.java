@@ -28,9 +28,15 @@ public class PieceController {
         return pieceService.doStep(step);
     }
 
-    @MessageMapping("isTurn")
-    public Mono<Boolean> isTurnOfCurrentUser() {
-        return pieceService.isTurnOfCurrentUser();
+    @MessageMapping("piece.isKing")
+    public Mono<Boolean> isPieceAtPositionKing(@Payload Mono<Piece.Position> positionMono) {
+        return positionMono.flatMap(pieceService::isPieceAtPositionKing);
+    }
+
+    @MessageMapping("count.opponentPieces.between")
+    public Mono<Integer> countOpponentPiecesBetweenPositions(@Payload Mono<Step> stepMono) {
+        return stepMono.flatMap(step ->
+                pieceService.countOpponentPiecesBetweenPositions(step.getFromPosition(), step.getToPosition()));
     }
 
 }

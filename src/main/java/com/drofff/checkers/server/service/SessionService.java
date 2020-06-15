@@ -16,11 +16,15 @@ public interface SessionService {
 
     Mono<Void> updateSession(Session session);
 
-    Mono<Void> sendStepToOpponent(Step step);
+    Mono<Void> sendStepOfKingToOpponent(Step step);
+
+    Mono<Void> sendStepOfManToOpponent(Step step);
 
     Mono<Void> sendStepToSessionMembers(Step step);
 
     void sendMessageToUserWithId(Message message, String userId);
+
+    Mono<Boolean> isTurnOfCurrentUser();
 
     Mono<Session> getCurrentSession();
 
