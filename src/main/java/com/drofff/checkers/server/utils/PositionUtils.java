@@ -37,4 +37,14 @@ public class PositionUtils {
         return num < maxValue && num > minValue;
     }
 
+    public static int[] getDistanceBetweenPositions(Piece.Position pos0, Piece.Position pos1) {
+        int rowDiff = diff(pos0.getRow(), pos1.getRow());
+        int columnDiff = diff(pos0.getColumn(), pos1.getColumn());
+        return new int[] { rowDiff, columnDiff };
+    }
+
+    private static int diff(int num0, int num1) {
+        return Math.abs(num0 - num1);
+    }
+
 }

@@ -96,9 +96,10 @@ public class PieceServiceImpl implements PieceService {
     private Mono<Step> applyStepToPiece(Step step, Piece piece) {
         return sessionService.getCurrentSession()
                 .flatMap(session -> markPieceAsKingIfStepToOppositeEnd(piece, step, session))
+                .flatMap(session -> isSingleStepOfPiece(step, piece, session) ? switchTurnAtSessionToOpponent(session) :
+                        Mono.just(session))
                 .flatMap(session -> updatePieceByStepInSession(piece, step, session))
                 .flatMap(session -> removePiecesCapturedByStepFromSession(step, session))
-                .flatMap(this::switchTurnAtSessionToOpponent)
                 .flatMap(sessionService::updateSession)
                 .thenReturn(step);
     }
@@ -124,6 +125,64 @@ public class PieceServiceImpl implements PieceService {
             updatePieceInSession(piece, session);
         }
         return session;
+    }
+
+    private boolean isSingleStepOfPiece(Step step, Piece piece, Session session) {
+        return !isMultiStepOfPiece(step, piece, session);
+    }
+
+    private boolean isMultiStepOfPiece(Step step, Piece piece, Session session) {
+        List<Piece> pieces = session.getGameBoard().getPieces();
+        if(stepCapturesAnyPiece(step, pieces)) {
+            return pieces.stream().filter(candidatePiece -> candidatePiece.canBeCapturedFromPosition(step.getToPosition()))
+                    .filter(candidatePiece -> isPieceNotOwnerByUserWithId(candidatePiece, piece.getOwnerId()))
+                    .anyMatch(candidatePiece -> isNextOfStepFromToEmpty(step.getToPosition(),
+                            candidatePiece.getPosition(), session));
+        }
+        return false;
+    }
+
+    private boolean stepCapturesAnyPiece(Step step, List<Piece> pieces) {
+        return pieces.stream().anyMatch(step::captures);
+    }
+
+    private boolean isNextOfStepFromToEmpty(Piece.Position from, Piece.Position to, Session session) {
+        Piece.Position nextPosition = getNextOfStepFromTo(from, to);
+        return isAtBoard(nextPosition) && hasNoPieceAtPosition(nextPosition, session);
+    }
+
+    private Piece.Position getNextOfStepFromTo(Piece.Position from, Piece.Position to) {
+        int columnStep = to.getColumn() - from.getColumn();
+        int rowStep = to.getRow() - from.getRow();
+        int nextColumn = to.getColumn() + columnStep;
+        int nextRow = to.getRow() + rowStep;
+        return Piece.Position.of(nextColumn, nextRow);
+    }
+
+    private boolean isAtBoard(Piece.Position position) {
+        return isCoordinateAtBoard(position.getRow()) && isCoordinateAtBoard(position.getColumn());
+    }
+
+    private boolean isCoordinateAtBoard(int coordinate) {
+        return coordinate >= 0 && coordinate <= BOARD_ROW_SIZE;
+    }
+
+    private boolean hasNoPieceAtPosition(Piece.Position position, Session session) {
+        return session.getGameBoard().getPieces().stream()
+                .noneMatch(piece -> piece.hasPosition(position));
+    }
+
+    private Mono<Session> switchTurnAtSessionToOpponent(Session session) {
+        return getBoardSideOfOpponentOfUser(getCurrentUser())
+                .map(opponentSide -> {
+                    Board gameBoard = session.getGameBoard();
+                    gameBoard.setTurnSide(opponentSide);
+                    return session;
+                });
+    }
+
+    private Mono<BoardSide> getBoardSideOfOpponentOfUser(Mono<User> userMono) {
+        return sessionService.getBoardSideOfUser(userMono).map(BoardSide::oppositeSide);
     }
 
     private Mono<Session> updatePieceByStepInSession(Piece piece, Step step, Session session) {
@@ -152,19 +211,6 @@ public class PieceServiceImpl implements PieceService {
         List<Piece> pieces = session.getGameBoard().getPieces();
         pieces.remove(piece);
         pieces.add(piece);
-    }
-
-    private Mono<Session> switchTurnAtSessionToOpponent(Session session) {
-        return getBoardSideOfOpponentOfUser(getCurrentUser())
-                .map(opponentSide -> {
-                    Board gameBoard = session.getGameBoard();
-                    gameBoard.setTurnSide(opponentSide);
-                    return session;
-                });
-    }
-
-    private Mono<BoardSide> getBoardSideOfOpponentOfUser(Mono<User> userMono) {
-        return sessionService.getBoardSideOfUser(userMono).map(BoardSide::oppositeSide);
     }
 
     private Mono<Void> finishSessionIfGameOver() {
@@ -249,7 +295,11 @@ public class PieceServiceImpl implements PieceService {
     }
 
     private boolean isPieceNotOwnedByUser(Piece piece, User user) {
-        return !user.getId().equals(piece.getOwnerId());
+        return isPieceNotOwnerByUserWithId(piece, user.getId());
+    }
+
+    private boolean isPieceNotOwnerByUserWithId(Piece piece, String userId) {
+        return !userId.equals(piece.getOwnerId());
     }
 
     private boolean isPieceLocatedBetweenPositions(Piece piece, Piece.Position from, Piece.Position to) {

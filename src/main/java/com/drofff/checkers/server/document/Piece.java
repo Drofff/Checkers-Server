@@ -3,6 +3,7 @@ package com.drofff.checkers.server.document;
 import java.util.UUID;
 
 import static com.drofff.checkers.server.constants.GameConstants.BOARD_ROW_SIZE;
+import static com.drofff.checkers.server.utils.PositionUtils.getDistanceBetweenPositions;
 
 public class Piece {
 
@@ -61,6 +62,11 @@ public class Piece {
 
     public void invertPosition() {
         position = position.inverse();
+    }
+
+    public boolean canBeCapturedFromPosition(Position position) {
+        int[] distance = getDistanceBetweenPositions(this.position, position);
+        return distance[0] == distance[1] && distance[0] == 1;
     }
 
     @Override
