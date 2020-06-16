@@ -164,7 +164,7 @@ public class PieceServiceImpl implements PieceService {
     }
 
     private boolean isCoordinateAtBoard(int coordinate) {
-        return coordinate >= 0 && coordinate <= BOARD_ROW_SIZE;
+        return coordinate >= 0 && coordinate < BOARD_ROW_SIZE;
     }
 
     private boolean hasNoPieceAtPosition(Piece.Position position, Session session) {
